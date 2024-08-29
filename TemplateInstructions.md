@@ -344,9 +344,7 @@ app.get('/api/hello', (_req, res) => {
 });
 
 // Determine the correct static file path
-const staticPath = process.env.NODE_ENV === 'production'
-  ? path.join(__dirname, '../dist')
-  : path.join(__dirname, '..');
+const staticPath = path.join(__dirname, '../../dist/client');
 
 // Serve static files
 app.use(express.static(staticPath));
@@ -358,6 +356,7 @@ app.get('*', (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(`Serving static files from: ${staticPath}`);
 });
 ```
 
@@ -472,6 +471,7 @@ export default defineConfig(({ command }) => {
             manualChunks: undefined,
           },
         },
+        assetsDir: '.', // This ensures assets are in the root of outDir
       },
     }
   }
@@ -555,8 +555,8 @@ PATH = "/home/runner/$REPL_SLUG/.config/npm/node_global/bin:/home/runner/$REPL_S
 channel = "stable-22_11"
 
 [deployment]
-build = ["sh", "-c", "npm install && npm run build"]
-run = ["sh", "-c", "npm run prod"]
+build = ["sh", "-c", "npm install && npm run build && npm run build:server"]
+run = ["sh", "-c", "npm start"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
@@ -584,11 +584,24 @@ Update `replit.nix`:
 
 ### 8. Start Development
 
-To start both the frontend and backend servers, run:
+To depoloy on Replit in Prod  use the following commands:
+
+Build Command
 
 ```bash
-npm run dev:all
+npm install && npm run build && npm run build:server
+
 ```
+
+Run Command
+
+```bash
+npm start
+
+```
+
+
+
 
 This command will concurrently run the Vite development server for the frontend and the Express server for the backend.
 
