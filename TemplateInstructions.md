@@ -225,6 +225,7 @@ After initializing shadcn/ui, update your `tsconfig.json` to include the correct
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "composite": true,
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
@@ -239,6 +240,36 @@ After initializing shadcn/ui, update your `tsconfig.json` to include the correct
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
+```
+
+
+Update 'tsconfig.node.json': 
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "emit": true,
+    "composite": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["vite.config.ts"]
+}
+
 ```
 
 ### Update vite.config.ts for path aliasing
@@ -259,6 +290,10 @@ export default defineConfig({
   },
 })
 ```
+
+
+
+
 
 With these steps completed, your frontend environment is set up and ready for development. Proceed to Part 2 for backend setup and final configurations.
 
@@ -345,8 +380,9 @@ touch tsconfig.server.json
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "./dist",
-    "rootDir": "./server"
+    "outDir": "./dist/server",
+    "rootDir": "./server",
+    "noEmit": false
   },
   "include": ["server/**/*"],
   "ts-node": {
@@ -361,7 +397,7 @@ touch tsconfig.server.json
 Update `src/App.tsx` to include an API call and use the shadcn/ui Button:
 
 ```typescript
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 
 function App() {
@@ -396,31 +432,49 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-  server: {
-    host: '0.0.0.0',
-    port: 3000,
-    strictPort: true,
-    hmr: {
-      clientPort: 443 // This is for Replit
-    },
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
+export default defineConfig(({ command }) => {
+  const commonConfig = {
+    plugins: [react()],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
       },
     },
-  },
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-  },
+  }
+
+  if (command === 'serve') {
+    return {
+      ...commonConfig,
+      server: {
+        host: '0.0.0.0',
+        port: 5173,
+        strictPort: true,
+        hmr: {
+          clientPort: 443 // This is for Replit
+        },
+        proxy: {
+          '/api': {
+            target: 'http://localhost:3000',
+            changeOrigin: true,
+          },
+        },
+      },
+    }
+  } else {
+    // Production build configuration
+    return {
+      ...commonConfig,
+      build: {
+        outDir: 'dist/client',
+        emptyOutDir: true,
+        rollupOptions: {
+          output: {
+            manualChunks: undefined,
+          },
+        },
+      },
+    }
+  }
 })
 ```
 
@@ -435,24 +489,28 @@ Update `package.json`:
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "dev:all": "concurrently \"npm run dev\" \"ts-node-esm server/index.ts\"",
     "dev": "vite --host 0.0.0.0 --port 5173",
-    "build": "tsc && vite build",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "tsc && vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "server": "node --experimental-specifier-resolution=node --loader ts-node/esm server/index.ts",
-    "dev:all": "concurrently \"npm run dev\" \"npm run server\""
+    "server": "node dist/server/index.js",
+    "start": "node dist/server/index.js",
+    "prod": "npm run build && npm run start"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
-    "class-variance-authority": "^0.6.0",
+    "class-variance-authority": "^0.6.1",
     "clsx": "^1.2.1",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "http-proxy-middleware": "^3.0.0",
+    "lucide-react": "^0.436.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "tailwind-merge": "^1.13.2"
+    "tailwind-merge": "^1.14.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",
@@ -471,13 +529,14 @@ Update `package.json`:
     "nodemon": "^3.1.4",
     "postcss": "^8.4.24",
     "tailwindcss": "^3.3.2",
-    "tailwindcss-animate": "^1.0.6",
+    "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.1",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.0.2",
     "vite": "^4.3.9"
   }
 }
+
 
 ```
 
@@ -496,12 +555,18 @@ PATH = "/home/runner/$REPL_SLUG/.config/npm/node_global/bin:/home/runner/$REPL_S
 channel = "stable-22_11"
 
 [deployment]
-run = ["sh", "-c", "npm run dev:all"]
+build = ["sh", "-c", "npm install && npm run build"]
+run = ["sh", "-c", "npm run prod"]
 deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 3000
+externalPort = 3000
 
 [[ports]]
 localPort = 5173
 externalPort = 80
+
 ```
 
 Update `replit.nix`:
